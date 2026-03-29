@@ -12,14 +12,14 @@ echo "Installing Harness Agent Skill for Claude Code..."
 
 mkdir -p "$SKILL_DIR" "$AGENT_DIR"
 
-curl -sSL "$REPO_URL/skill/skill.md" -o "$SKILL_DIR/skill.md"
+curl -sSL "$REPO_URL/skill/SKILL.md" -o "$SKILL_DIR/SKILL.md"
 curl -sSL "$REPO_URL/agents/planner.md" -o "$AGENT_DIR/planner.md"
 curl -sSL "$REPO_URL/agents/generator.md" -o "$AGENT_DIR/generator.md"
 curl -sSL "$REPO_URL/agents/evaluator.md" -o "$AGENT_DIR/evaluator.md"
 
 echo ""
 echo "Installed successfully!"
-echo "  Skill:  $SKILL_DIR/skill.md"
+echo "  Skill:  $SKILL_DIR/SKILL.md"
 echo "  Agents: $AGENT_DIR/*.md"
 echo ""
 echo "Usage: type /harness <task description> in Claude Code"

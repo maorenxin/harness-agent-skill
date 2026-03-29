@@ -13,7 +13,7 @@ Or manually:
 ```bash
 # Skill definition
 mkdir -p ~/.claude/skills/harness
-cp skill/skill.md ~/.claude/skills/harness/
+cp skill/SKILL.md ~/.claude/skills/harness/
 
 # Agent definitions
 mkdir -p ~/.agents/skills/harness/agents
@@ -104,7 +104,7 @@ The Alignment Phase made the difference — by having Generator and Evaluator ag
 
 ```
 ~/.claude/skills/harness/
-└── skill.md                    # Skill definition (orchestrator instructions)
+└── SKILL.md                    # Skill definition (orchestrator instructions)
 
 ~/.agents/skills/harness/agents/
 ├── planner.md                  # Spec + criteria + contract
