@@ -1,14 +1,190 @@
 # Harness Agent Skill
 
-A multi-agent development harness for [Claude Code](https://claude.com/claude-code). Inspired by Anthropic's harness design pattern (GAN-style adversarial iteration), it decomposes complex software tasks into a **Planner → Generator ↔ Evaluator** loop that iterates until quality standards are met.
+[中文](#中文) | [English](#english)
 
-## Quick Install
+---
+
+## 中文
+
+面向 [Claude Code](https://claude.com/claude-code) 的多智能体开发框架。灵感来自 Anthropic 的 harness 设计模式（GAN 式对抗迭代），将复杂软件任务分解为 **Planner → Generator ↔ Evaluator** 循环，迭代直到达到质量标准。
+
+### 前置条件
+
+Harness 依赖 Claude Code 的 Agent Team 功能。安装前需要在 `~/.claude/settings.json` 中开启：
+
+```json
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  }
+}
+```
+
+> 没有专门的指令来开关此功能，只能通过 settings.json 配置。
+
+### 快速安装
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/maorenxin/harness-agent-skill/master/install.sh | bash
 ```
 
-Or manually:
+手动安装：
+
+```bash
+# Skill 定义
+mkdir -p ~/.claude/skills/harness
+cp skill/SKILL.md ~/.claude/skills/harness/
+
+# Agent 定义
+mkdir -p ~/.agents/skills/harness/agents
+cp agents/*.md ~/.agents/skills/harness/agents/
+```
+
+### 使用方法
+
+在 Claude Code 中输入：
+
+```
+/harness 你的需求描述
+```
+
+带参数：
+
+```
+/harness --max-rounds 8 --threshold 9 --dir ./my-project 需求描述
+```
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `--max-rounds N` | 10 | 最大迭代轮数 |
+| `--threshold N` | 9 | 通过分数阈值 (1-10) |
+| `--dir PATH` | `.` | 工作目录 |
+
+### 工作原理
+
+```
+用户需求
+    │
+    ▼
+┌─────────┐    spec.md
+│ Planner │───▶ criteria.md    ◀── 用户确认评分维度
+│         │    contract.md
+└─────────┘
+    │
+    ▼
+┌───────────┐  implementation-plan.md   ┌───────────┐
+│ Generator │◀─────────────────────────▶│ Evaluator │  对齐阶段
+│           │  alignment-review.md      │           │  (编码前协商)
+└───────────┘                           └───────────┘
+    │                                        │
+    ▼                                        ▼
+┌───────────┐  progress-round-N.md      ┌───────────┐
+│ Generator │─────────────────────────▶ │ Evaluator │  迭代阶段
+│  (编码)   │◀─────────────────────────│  (评分)   │  (循环直到通过)
+└───────────┘  feedback-round-N.md      └───────────┘
+```
+
+1. **Planner** 将简短描述扩展为完整规格说明、评分标准和冲刺合约
+2. **用户确认** 评分维度和权重分配
+3. **对齐阶段** — Generator 编写实施计划，Evaluator 审查。双方协商直到对齐，避免无效编码
+4. **迭代阶段** — Generator 编码 → Evaluator 按标准评分 → 未达标则给出具体反馈，Generator 重试
+5. **交付** — 分数达标后，最终清理和总结
+
+### 实际效果
+
+用两条 prompt 从零构建了一个完整的浏览器贪吃蛇游戏，总计约 50 分钟：
+
+**Prompt 1**（28 分钟，2 轮编码）：
+> "做一个贪吃蛇游戏，需要有过关系统，吃item1变长，吃item2变短，道具可配置（内置预设+随机+AI生成）"
+
+- Round 1: 6.95/10 (FAIL) → Round 2: 8.30/10 (PASS)
+- 交付：10 个关卡、双道具、可配置预设、连击计分、粒子效果、音效、触屏支持
+
+**Prompt 2**（21 分钟，1 轮编码）：
+> "画布变大2倍，增加一条电脑蛇会跟我抢吃的"
+
+- 对齐阶段在编码前捕获了 6 处规格偏差
+- Round 1: 9.75/10（首轮通过）
+- 交付：40x40 网格、BFS 寻路 AI 蛇、竞争性道具争夺
+
+**在线试玩**：https://maorenxin.github.io/snake-game/
+
+对齐阶段是关键 — Generator 和 Evaluator 在编码前达成一致，第二条 prompt 首轮就以 9.75/10 通过。
+
+### 核心特性
+
+- **用户驱动评分** — 开工前由你选择评分维度（功能性、代码质量、用户体验、可靠性等）和权重
+- **对齐阶段** — Generator 和 Evaluator 在编码前协商实施细节，提前发现规格缺口
+- **对抗式评估** — Evaluator 倾向怀疑，分数必须用证据赢得
+- **结构化交接** — 所有通信通过 `.harness/` 中的版本化 markdown 文件进行
+- **Git 隔离** — 每次 harness 运行使用独立分支 (`harness/<slug>`)
+- **自动清理** — `.harness/` 被 gitignore，团队生命周期严格管理
+
+### 文件结构
+
+```
+~/.claude/skills/harness/
+└── SKILL.md                    # Skill 定义（编排器指令）
+
+~/.agents/skills/harness/agents/
+├── planner.md                  # 规格 + 标准 + 合约
+├── generator.md                # 迭代实现
+└── evaluator.md                # 测试 + 评分 + 反馈
+```
+
+运行期间在项目中创建的工作文件：
+
+```
+$PROJECT/.harness/run-YYYY-MM-DD-<slug>/
+├── state.json                  # Harness 状态追踪
+├── spec.md                     # 产品规格说明
+├── criteria.md                 # 评分标准（用户确认）
+├── contract.md                 # 冲刺合约
+├── implementation-plan.md      # Generator 技术方案
+├── alignment-review.md         # Evaluator 方案审查
+├── progress-round-N.md         # Generator 进度报告
+├── evaluation-round-N.md       # Evaluator 评分 + 分析
+├── feedback-round-N.md         # 可执行反馈
+└── summary.md                  # 最终交付总结
+```
+
+### 环境要求
+
+- [Claude Code](https://claude.com/claude-code) CLI
+- Git（用于分支隔离）
+- Agent Team 模式已开启（见[前置条件](#前置条件)）
+
+### 许可证
+
+MIT
+
+---
+
+## English
+
+A multi-agent development harness for [Claude Code](https://claude.com/claude-code). Inspired by Anthropic's harness design pattern (GAN-style adversarial iteration), it decomposes complex software tasks into a **Planner → Generator ↔ Evaluator** loop that iterates until quality standards are met.
+
+### Prerequisites
+
+Harness relies on Claude Code's Agent Team feature. Enable it in `~/.claude/settings.json` before installing:
+
+```json
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  }
+}
+```
+
+> There is no dedicated command to toggle this — it can only be configured via settings.json.
+
+### Quick Install
+
+```bash
+curl -sSL https://raw.githubusercontent.com/maorenxin/harness-agent-skill/master/install.sh | bash
+```
+
+Manual install:
 
 ```bash
 # Skill definition
@@ -20,18 +196,18 @@ mkdir -p ~/.agents/skills/harness/agents
 cp agents/*.md ~/.agents/skills/harness/agents/
 ```
 
-## Usage
+### Usage
 
 In Claude Code, type:
 
 ```
-/harness 你的需求描述
+/harness your task description
 ```
 
 With options:
 
 ```
-/harness --max-rounds 8 --threshold 9 --dir ./my-project 需求描述
+/harness --max-rounds 8 --threshold 9 --dir ./my-project task description
 ```
 
 | Parameter | Default | Description |
@@ -40,7 +216,7 @@ With options:
 | `--threshold N` | 9 | Score threshold (1-10) to pass |
 | `--dir PATH` | `.` | Working directory |
 
-## How It Works
+### How It Works
 
 ```
 User Prompt
@@ -70,18 +246,18 @@ User Prompt
 4. **Iteration Phase** — Generator codes → Evaluator scores against criteria → if below threshold, Generator gets specific feedback and tries again
 5. **Delivery** — once the score passes the threshold, final cleanup and summary
 
-## Real-World Results
+### Real-World Results
 
 We built a complete browser-based snake game from scratch using two prompts, ~50 minutes total:
 
 **Prompt 1** (28 min, 2 coding rounds):
-> "做一个贪吃蛇游戏，需要有过关系统，吃item1变长，吃item2变短，道具可配置（内置预设+随机+AI生成）"
+> "Build a snake game with a level system, item1 makes snake longer, item2 makes it shorter, configurable items (built-in presets + random + AI-generated)"
 
 - Round 1: 6.95/10 (FAIL) → Round 2: 8.30/10 (PASS)
 - Delivered: 10 levels, dual items, configurable presets, combo scoring, particles, audio, touch support
 
 **Prompt 2** (21 min, 1 coding round):
-> "画布变大2倍，增加一条电脑蛇会跟我抢吃的"
+> "Double the canvas size, add a computer snake that competes for items"
 
 - Alignment Phase caught 6 spec deviations before coding started
 - Round 1: 9.75/10 (PASS on first try)
@@ -91,7 +267,7 @@ We built a complete browser-based snake game from scratch using two prompts, ~50
 
 The Alignment Phase made the difference — by having Generator and Evaluator agree on the plan before coding, the second prompt passed in one round at 9.75/10.
 
-## Key Features
+### Key Features
 
 - **User-driven grading** — you pick the dimensions (Functionality, Code Quality, UX, Reliability, etc.) and weight distribution before work starts
 - **Alignment Phase** — Generator and Evaluator negotiate implementation details before coding, catching spec gaps early
@@ -100,7 +276,7 @@ The Alignment Phase made the difference — by having Generator and Evaluator ag
 - **Git isolation** — each harness run gets its own branch (`harness/<slug>`)
 - **Auto-cleanup** — `.harness/` is gitignored, team lifecycle is strictly managed
 
-## File Structure
+### File Structure
 
 ```
 ~/.claude/skills/harness/
@@ -128,11 +304,12 @@ $PROJECT/.harness/run-YYYY-MM-DD-<slug>/
 └── summary.md                  # Final delivery summary
 ```
 
-## Requirements
+### Requirements
 
 - [Claude Code](https://claude.com/claude-code) CLI
 - Git (for branch isolation)
+- Agent Team mode enabled (see [Prerequisites](#prerequisites))
 
-## License
+### License
 
 MIT
