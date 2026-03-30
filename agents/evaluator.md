@@ -56,11 +56,48 @@ and write `<harness_dir>/alignment-review.md`:
 
 If you write `NEEDS REVISION`, the Generator must update the plan. Repeat until you write `ALIGNED`.
 
-### 1. Determine Evaluation Method
+### 1. Mandatory Verification Phases
 
-Read `contract.md` to determine the evaluation method, then execute accordingly:
+Before scoring any dimension, you MUST execute these 6 phases IN ORDER.
+Record each phase result in `evaluation-round-N.md`. If Phase 1 (Build) fails, STOP and score Functionality ≤ 3.
 
-**For Web Projects (frontend/fullstack):**
+#### Phase 1: Build Verification
+
+Run the project's build command:
+- Node: `npm run build` or `pnpm build`
+- Rust: `cargo build`
+- Python: verify imports work, `python -c "import <main_module>"`
+- Go: `go build ./...`
+
+If build fails, record the error and skip to Phase 6 (Diff Review). All scores will be capped.
+
+#### Phase 2: Static Analysis
+
+Run type checking and linting. Record all errors and warnings.
+- TypeScript: `npx tsc --noEmit`
+- Python: `ruff check .` or `pyright .`
+- Rust: `cargo clippy`
+- Go: `go vet ./...`
+
+#### Phase 3: Test Suite
+
+Run existing tests. Record pass/fail count and coverage if available.
+- `npm test`, `pytest`, `cargo test`, `go test ./...`
+- If no tests exist, note this as a gap in the Testing dimension.
+
+#### Phase 4: Security Scan
+
+Check for common security issues:
+- Hardcoded secrets: `grep -rn "sk-\|api_key\|password\s*=" --include="*.ts" --include="*.py" --include="*.js" src/ 2>/dev/null`
+- Console.log in production code (web projects)
+- SQL injection patterns, unsanitized user input
+- Dependencies with known vulnerabilities: `npm audit` or `pip audit`
+
+#### Phase 5: Runtime Verification
+
+Actually run the application and test it (method from `contract.md`):
+
+**Web Projects (frontend/fullstack):**
 - Start the dev server (e.g., `npm run dev`, `python -m uvicorn ...`)
 - Wait for it to be ready
 - Use Playwright or curl to interact with the running application
@@ -70,29 +107,45 @@ Read `contract.md` to determine the evaluation method, then execute accordingly:
 - Check browser console for errors
 - Stop the dev server when done
 
-**For Libraries/Packages:**
-- Run the test suite (`npm test`, `cargo test`, `pytest`, etc.)
+**Libraries/Packages:**
 - Check that the public API matches the spec
 - Try importing and using the library in a scratch file
 - Check documentation/types
 
-**For CLI Tools:**
+**CLI Tools:**
 - Run the CLI with various inputs (happy path + edge cases)
 - Check exit codes, stdout, stderr
 - Test help text and error messages
 
-**For APIs:**
+**APIs:**
 - Start the server
 - Hit each endpoint with valid and invalid inputs
 - Check response codes, bodies, headers
 - Test authentication if applicable
 - Stop the server when done
 
-**For All Projects:**
-- Run linting (`npm run lint`, `cargo clippy`, `ruff check`, etc.)
-- Run existing tests
-- Review code quality by reading key files
-- Check for security issues (hardcoded secrets, SQL injection, XSS, etc.)
+#### Phase 6: Diff Review
+
+Review all changes since last round (or since branch creation for round 1):
+- `git diff HEAD~1 --stat` for scope
+- Read each changed file for unintended changes, missing error handling, edge cases
+
+#### Phase Results Table
+
+Record results in this format in `evaluation-round-N.md`:
+
+```
+## Verification Phases
+
+| Phase | Status | Details |
+|-------|--------|---------|
+| Build | PASS/FAIL | ... |
+| Static Analysis | PASS (N warnings) | ... |
+| Tests | PASS (X/Y, Z% coverage) | ... |
+| Security | PASS (0 issues) | ... |
+| Runtime | PASS | ... |
+| Diff Review | N files changed | ... |
+```
 
 ### 2. Score Each Dimension
 
@@ -148,6 +201,16 @@ Write `<harness_dir>/evaluation-round-{N}.md`:
 - Round 1: X.X → Round 2: X.X → ... → Round {N}: X.X
 - Improving / Plateauing / Declining
 - If plateauing: suggest pivot direction
+
+## Reliability (round > 1)
+- Score history: R1: X.X → R2: X.X → ... → RN: X.X
+- Volatility: LOW/MEDIUM/HIGH (max swing between consecutive rounds)
+  - LOW: max swing < 1.0
+  - MEDIUM: max swing 1.0-2.0
+  - HIGH: max swing > 2.0
+- Convergence: YES/NO (last 2 rounds within 0.3 of each other)
+- pass^3 status: X/3 consecutive rounds above threshold
+  - e.g., "2/3 — need 1 more consecutive round above 9.5 to PASS"
 ```
 
 ### 4. Write Feedback for Generator

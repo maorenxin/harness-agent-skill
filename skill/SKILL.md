@@ -13,7 +13,7 @@ structured feedback cycles.
 
 ```
 /harness <task description>
-/harness --max-rounds 8 --threshold 9 --dir ./my-project <task description>
+/harness --max-rounds 8 --threshold 9.5 --pass-k 3 --dir ./my-project <task description>
 ```
 
 ### Parameters
@@ -22,7 +22,8 @@ structured feedback cycles.
 |------------------|---------|------------------------------------------------|
 | `<description>`  | —       | 1-4 sentence natural language task description  |
 | `--max-rounds N` | 10      | Maximum generator↔evaluator iteration rounds    |
-| `--threshold N`  | 9       | Score threshold (1-10) to auto-pass evaluation  |
+| `--threshold N`  | 9.5     | Score threshold (1-10) for pass^k evaluation    |
+| `--pass-k N`     | 3       | Consecutive rounds above threshold to pass      |
 | `--dir PATH`     | `.`     | Working directory for the project               |
 
 ## Execution Flow
@@ -31,7 +32,7 @@ When this skill is invoked, the orchestrator (you) must follow these steps exact
 
 ### Step 0: Setup
 
-1. Parse arguments: extract `--max-rounds`, `--threshold`, `--dir`, and the task description.
+1. Parse arguments: extract `--max-rounds`, `--threshold`, `--pass-k`, `--dir`, and the task description.
 2. Determine the project working directory (`PROJECT_DIR`).
 3. **Team Lifecycle Cleanup**: Before creating anything, check if you are currently leading a team from a previous harness run. If so:
    - Send shutdown requests to ALL active teammates and wait for confirmation
@@ -56,10 +57,12 @@ When this skill is invoked, the orchestrator (you) must follow these steps exact
    {
      "task": "<original description>",
      "max_rounds": 10,
-     "threshold": 9,
+     "threshold": 9.5,
+     "pass_k": 3,
      "current_round": 0,
      "status": "planning",
      "scores": [],
+     "consecutive_passes": 0,
      "branch": "harness/<short-slug>"
    }
    ```
@@ -150,11 +153,32 @@ Each iteration round:
    - Writes `evaluation-round-N.md` with scores, detailed feedback, and pass/fail verdict
    - Writes `feedback-round-N.md` with actionable items for the Generator
 
-3. **Check termination conditions:**
-   - If average score >= threshold → **PASS**, proceed to Step 3
-   - If current_round >= max_rounds → **STOP**, proceed to Step 3 with current state
-   - If scores plateau (no improvement for 2 consecutive rounds) → Evaluator suggests pivot direction in feedback
-   - Otherwise → increment round, Generator reads new feedback, loop back to (1)
+3. **Check termination conditions (pass^k model):**
+
+   The harness uses a **pass^k** reliability model: the Generator must achieve `k` consecutive rounds
+   above the threshold to pass. This ensures quality is stable, not a one-time fluke.
+
+   After each Evaluator round, update `state.json`:
+   - If this round's weighted avg >= threshold: increment `consecutive_passes`
+   - If this round's weighted avg < threshold: reset `consecutive_passes` to 0
+
+   Then check these conditions IN ORDER:
+
+   a. **PASS (Stable)**: `consecutive_passes >= pass_k`
+      - The work has consistently met quality standards for `k` consecutive rounds.
+      - Proceed to Step 3 (Delivery).
+
+   b. **PASS (Approaching)**: weighted avg >= threshold BUT `consecutive_passes < pass_k`
+      - Tell Generator: "Score is above threshold ({score}/{threshold}), {consecutive_passes}/{pass_k} consecutive passes achieved. Maintain quality for {remaining} more round(s) to confirm stability."
+      - Continue to next round.
+
+   c. **STOP**: `current_round >= max_rounds`
+      - Report final state including pass^k progress. Proceed to Step 3.
+
+   d. **PLATEAU**: scores changed < 0.3 for 2+ consecutive rounds AND below threshold
+      - Evaluator suggests pivot direction in feedback.
+
+   e. **FAIL**: score below threshold, continue to next round.
 
 4. Update `state.json` after each round with current scores and status.
 
@@ -175,6 +199,18 @@ Each iteration round:
    - Total rounds used
    - Key decisions made
    - What was delivered
+   - Reliability metrics:
+     ```
+     ## Reliability Metrics (pass^k)
+     - Threshold: X.X
+     - Required consecutive passes (k): N
+     - Rounds played: N
+     - Rounds above threshold: M
+     - Max consecutive passes achieved: N
+     - pass^k achieved: YES/NO (round N)
+     - Score trend: improving / stable / declining / volatile
+     - Final score: X.XX (round N)
+     ```
 5. Report final results to the user.
 6. **Team Shutdown** (must follow this exact sequence):
    a. Send `shutdown_request` to ALL active teammates (Generator, Evaluator) and wait for `shutdown_approved` responses
@@ -225,7 +261,7 @@ The three agents are defined in `~/.agents/skills/harness/agents/`:
 - Grading dimensions and weights are confirmed by the user before the Planner writes `criteria.md`
 - The Planner uses Plan Mode to get user approval before writing documents
 - Multiple harness runs can coexist under `.harness/` — each is independent
-- Default pass threshold is 9/10
+- Default pass threshold is 9.5/10 with pass^3 (3 consecutive rounds above threshold required)
 
 ### Agent Naming Convention
 

@@ -51,13 +51,14 @@ cp agents/*.md ~/.agents/skills/harness/agents/
 带参数：
 
 ```
-/harness --max-rounds 8 --threshold 9 --dir ./my-project 需求描述
+/harness --max-rounds 8 --threshold 9.5 --pass-k 3 --dir ./my-project 需求描述
 ```
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
 | `--max-rounds N` | 10 | 最大迭代轮数 |
-| `--threshold N` | 9 | 通过分数阈值 (1-10) |
+| `--threshold N` | 9.5 | 通过分数阈值 (1-10) |
+| `--pass-k N` | 3 | 连续达标轮数（pass^k） |
 | `--dir PATH` | `.` | 工作目录 |
 
 ### 工作原理
@@ -87,8 +88,8 @@ cp agents/*.md ~/.agents/skills/harness/agents/
 1. **Planner** 将简短描述扩展为完整规格说明、评分标准和冲刺合约
 2. **用户确认** 评分维度和权重分配
 3. **对齐阶段** — Generator 编写实施计划，Evaluator 审查。双方协商直到对齐，避免无效编码
-4. **迭代阶段** — Generator 编码 → Evaluator 按标准评分 → 未达标则给出具体反馈，Generator 重试
-5. **交付** — 分数达标后，最终清理和总结
+4. **迭代阶段** — Generator 编码 → Evaluator 按标准评分 → 未达标则给出具体反馈，Generator 重试。采用 pass^k 模型：需连续 k 轮达标才算通过
+5. **交付** — 连续达标后，最终清理和总结
 
 ### 实际效果
 
@@ -207,13 +208,14 @@ In Claude Code, type:
 With options:
 
 ```
-/harness --max-rounds 8 --threshold 9 --dir ./my-project task description
+/harness --max-rounds 8 --threshold 9.5 --pass-k 3 --dir ./my-project task description
 ```
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `--max-rounds N` | 10 | Maximum iteration rounds |
-| `--threshold N` | 9 | Score threshold (1-10) to pass |
+| `--threshold N` | 9.5 | Score threshold (1-10) to pass |
+| `--pass-k N` | 3 | Consecutive rounds above threshold (pass^k) |
 | `--dir PATH` | `.` | Working directory |
 
 ### How It Works
@@ -243,8 +245,8 @@ User Prompt
 1. **Planner** expands your brief description into a full spec, grading criteria, and sprint contract
 2. **User confirms** which grading dimensions and weight distribution to use
 3. **Alignment Phase** — Generator writes an implementation plan, Evaluator reviews it. They negotiate until aligned. This prevents wasted coding effort.
-4. **Iteration Phase** — Generator codes → Evaluator scores against criteria → if below threshold, Generator gets specific feedback and tries again
-5. **Delivery** — once the score passes the threshold, final cleanup and summary
+4. **Iteration Phase** — Generator codes → Evaluator scores against criteria → if below threshold, Generator gets specific feedback and tries again. Uses pass^k model: k consecutive rounds above threshold required to pass
+5. **Delivery** — once pass^k is achieved, final cleanup and summary
 
 ### Real-World Results
 
