@@ -33,7 +33,7 @@ curl -sSL https://raw.githubusercontent.com/maorenxin/harness-agent-skill/master
 ```bash
 # Skill 定义
 mkdir -p ~/.claude/skills/harness
-cp skill/SKILL.md ~/.claude/skills/harness/
+cp SKILL.md ~/.claude/skills/harness/
 
 # Agent 定义
 mkdir -p ~/.agents/skills/harness/agents
@@ -190,7 +190,7 @@ Manual install:
 ```bash
 # Skill definition
 mkdir -p ~/.claude/skills/harness
-cp skill/SKILL.md ~/.claude/skills/harness/
+cp SKILL.md ~/.claude/skills/harness/
 
 # Agent definitions
 mkdir -p ~/.agents/skills/harness/agents
