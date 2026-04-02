@@ -98,14 +98,39 @@ Check for common security issues:
 Actually run the application and test it (method from `contract.md`):
 
 **Web Projects (frontend/fullstack):**
-- Start the dev server (e.g., `npm run dev`, `python -m uvicorn ...`)
-- Wait for it to be ready
-- Use Playwright or curl to interact with the running application
-- Navigate pages, click buttons, fill forms, test workflows
-- Take screenshots if possible (save to `<harness_dir>/screenshots/`)
-- Test API endpoints with curl/httpie
-- Check browser console for errors
-- Stop the dev server when done
+- Start the dev server in background (e.g., `npm run dev &`, `python -m uvicorn ... &`)
+- Wait for it to be ready (poll with `curl -s -o /dev/null -w "%{http_code}" http://localhost:<port>`)
+- Use the Puppeteer MCP tools to interact with the running application:
+  - `puppeteer_navigate` — open pages by URL
+  - `puppeteer_screenshot` — capture full page or element screenshots for visual/layout verification
+  - `puppeteer_click` — click buttons, links, and interactive elements (CSS selector)
+  - `puppeteer_fill` — fill input fields (CSS selector + value)
+  - `puppeteer_hover` — hover over elements to test hover states
+  - `puppeteer_select` — select dropdown options
+  - `puppeteer_evaluate` — execute JavaScript in the browser console to inspect DOM, check errors, read computed styles, verify layout, etc.
+- Verification workflow:
+  1. Navigate to the app URL with `puppeteer_navigate`
+  2. Take a full-page screenshot with `puppeteer_screenshot` to verify overall layout
+  3. Use `puppeteer_evaluate` to check for console errors: `window.__console_errors` or listen for errors
+  4. Walk through key user flows: click buttons, fill forms, navigate between pages
+  5. Take screenshots at each critical step (save names descriptively, e.g., "homepage", "form-filled", "after-submit")
+  6. Use `puppeteer_evaluate` to verify DOM structure, element visibility, computed styles, and responsive layout
+  7. Test API endpoints with curl/httpie in parallel for backend verification
+- Stop the dev server when done (kill the background process)
+
+> **Puppeteer MCP prerequisite**: The Puppeteer MCP server must be configured in Claude Code settings.
+> If not installed, add to `~/.claude/settings.json`:
+> ```json
+> {
+>   "mcpServers": {
+>     "puppeteer": {
+>       "command": "npx",
+>       "args": ["-y", "@anthropic-ai/mcp-puppeteer"]
+>     }
+>   }
+> }
+> ```
+> Then restart Claude Code. Requires Node.js >= 18.
 
 **Libraries/Packages:**
 - Check that the public API matches the spec
@@ -166,7 +191,7 @@ Write `<harness_dir>/evaluation-round-{N}.md`:
 
 ## Test Execution
 <What you tested and how>
-- Method: <Playwright / test suite / manual CLI / curl / etc.>
+- Method: <Puppeteer MCP / test suite / manual CLI / curl / etc.>
 - Steps taken: ...
 - Errors encountered: ...
 
