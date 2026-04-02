@@ -61,6 +61,35 @@ cp agents/*.md ~/.agents/skills/harness/agents/
 | `--pass-k N` | 3 | 连续达标轮数（pass^k） |
 | `--dir PATH` | `.` | 工作目录 |
 
+#### /harness-lite（轻量模式）
+
+当你已经有了计划（通过 Plan Mode 或对话中描述），或者 `/harness` 对当前任务来说太重，可以使用轻量模式：
+
+```
+/harness-lite 你的需求描述
+```
+
+带参数：
+
+```
+/harness-lite --max-rounds 5 --threshold 9.5 --dir ./my-project 需求描述
+```
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `--max-rounds N` | 5 | 最大迭代轮数 |
+| `--threshold N` | 9.5 | 通过分数阈值 (1-10) |
+| `--dir PATH` | `.` | 工作目录 |
+
+与完整模式的区别：
+
+| 方面 | /harness | /harness-lite |
+|------|----------|---------------|
+| Planner | 生成规格/标准/合约 | 跳过，使用用户已有计划 |
+| 对齐阶段 | Generator ↔ Evaluator 协商 | 跳过，直接开始编码 |
+| 通过模型 | pass^k（连续 k 轮达标） | 单次达标即通过 |
+| 默认轮数 | 10 | 5 |
+
 ### 工作原理
 
 ```
@@ -217,6 +246,35 @@ With options:
 | `--threshold N` | 9.5 | Score threshold (1-10) to pass |
 | `--pass-k N` | 3 | Consecutive rounds above threshold (pass^k) |
 | `--dir PATH` | `.` | Working directory |
+
+#### /harness-lite (Lightweight Mode)
+
+When you already have a plan (from Plan Mode or conversation context), or `/harness` feels too heavy for the task:
+
+```
+/harness-lite your task description
+```
+
+With options:
+
+```
+/harness-lite --max-rounds 5 --threshold 9.5 --dir ./my-project task description
+```
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--max-rounds N` | 5 | Maximum iteration rounds |
+| `--threshold N` | 9.5 | Score threshold (1-10) to pass |
+| `--dir PATH` | `.` | Working directory |
+
+Key differences from full mode:
+
+| Aspect | /harness | /harness-lite |
+|--------|----------|---------------|
+| Planner | Generates spec/criteria/contract | Skipped — uses user's existing plan |
+| Alignment Phase | Generator ↔ Evaluator negotiate | Skipped — starts coding immediately |
+| Pass model | pass^k (k consecutive rounds) | Single pass at threshold |
+| Default rounds | 10 | 5 |
 
 ### How It Works
 
