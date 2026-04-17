@@ -61,64 +61,46 @@ cp agents/*.md ~/.agents/skills/harness/agents/
 | `--pass-k N` | 3 | 连续达标轮数（pass^k） |
 | `--dir PATH` | `.` | 工作目录 |
 
-#### /harness-lite（轻量模式）
+#### 模糊描述 vs 详细计划
 
-当你已经有了计划（通过 Plan Mode 或对话中描述），或者 `/harness` 对当前任务来说太重，可以使用轻量模式：
+`/harness` 接受两种输入，Planner 会自动识别并切换模式：
 
-```
-/harness-lite 你的需求描述
-```
+- **模糊描述**（1-4 句话）— Planner 会浏览项目、扩展成完整规格，并询问你想要的评分维度和权重分布。
+- **详细计划**（带编号步骤 / 文件级决策 / 明确验收标准，或粘贴自 Plan Mode 的计划）— Planner 直接把你的计划翻译成 spec / criteria / contract 文档，使用合理的默认评分维度，不再打断询问。
 
-带参数：
-
-```
-/harness-lite --max-rounds 5 --threshold 9.5 --dir ./my-project 需求描述
-```
-
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `--max-rounds N` | 5 | 最大迭代轮数 |
-| `--threshold N` | 9.5 | 通过分数阈值 (1-10) |
-| `--dir PATH` | `.` | 工作目录 |
-
-与完整模式的区别：
-
-| 方面 | /harness | /harness-lite |
-|------|----------|---------------|
-| Planner | 生成规格/标准/合约 | 跳过，使用用户已有计划 |
-| 对齐阶段 | Generator ↔ Evaluator 协商 | 跳过，直接开始编码 |
-| 通过模型 | pass^k（连续 k 轮达标） | 单次达标即通过 |
-| 默认轮数 | 10 | 5 |
+这样就不需要单独的 `/harness-lite` 入口了。
 
 ### 工作原理
 
 ```
-用户需求
+用户需求（模糊描述 或 详细计划）
     │
     ▼
 ┌─────────┐    spec.md
-│ Planner │───▶ criteria.md    ◀── 用户确认评分维度
-│         │    contract.md
+│ Planner │───▶ criteria.md   ◀── 模糊模式下询问评分维度；详细模式直接翻译
+│ (bypass)│    contract.md       (仅写文档，不写代码)
 └─────────┘
     │
     ▼
 ┌───────────┐  implementation-plan.md   ┌───────────┐
 │ Generator │◀─────────────────────────▶│ Evaluator │  对齐阶段
-│           │  alignment-review.md      │           │  (编码前协商)
+│ (bypass)  │  alignment-review.md      │ (bypass)  │  (编码前协商)
 └───────────┘                           └───────────┘
     │                                        │
     ▼                                        ▼
 ┌───────────┐  progress-round-N.md      ┌───────────┐
 │ Generator │─────────────────────────▶ │ Evaluator │  迭代阶段
-│  (编码)   │◀─────────────────────────│  (评分)   │  (循环直到通过)
+│  (编码)   │◀─────────────────────────│  (评分)   │  (循环直到 pass^k)
 └───────────┘  feedback-round-N.md      └───────────┘
 ```
 
-1. **Planner** 将简短描述扩展为完整规格说明、评分标准和冲刺合约
-2. **用户确认** 评分维度和权重分配
+1. **Planner** 将需求翻译成规格说明、评分标准和冲刺合约。模糊描述走扩展流程，详细计划直接翻译。Planner 只写文档，不碰源码
+2. **用户确认** 评分维度和权重分配（仅模糊模式；详细计划使用默认权重，不打断）
 3. **对齐阶段** — Generator 编写实施计划，Evaluator 审查。双方协商直到对齐，避免无效编码
 4. **迭代阶段** — Generator 编码 → Evaluator 按标准评分 → 未达标则给出具体反馈，Generator 重试。采用 pass^k 模型：需连续 k 轮达标才算通过
 5. **交付** — 连续达标后，最终清理和总结
+
+> 所有 Teammate（Planner/Generator/Evaluator）都以 `bypassPermissions` 模式 spawn，避免每次 Read/Bash 都要 leader 审批。
 
 ### 实际效果
 
@@ -143,7 +125,10 @@ cp agents/*.md ~/.agents/skills/harness/agents/
 
 ### 核心特性
 
-- **用户驱动评分** — 开工前由你选择评分维度（功能性、代码质量、用户体验、可靠性等）和权重
+- **单入口，双模式** — `/harness` 同时接受模糊描述和详细计划，Planner 自动识别切换
+- **职责清晰** — Planner 只写规格文档，不碰源码；Generator 才是唯一的编码者
+- **无审批摩擦** — 所有 Teammate 以 `bypassPermissions` 模式 spawn，不会把每次工具调用都退回给 leader
+- **用户驱动评分** — 模糊模式下由你选择评分维度和权重；详细模式使用合理默认值
 - **对齐阶段** — Generator 和 Evaluator 在编码前协商实施细节，提前发现规格缺口
 - **对抗式评估** — Evaluator 倾向怀疑，分数必须用证据赢得
 - **结构化交接** — 所有通信通过 `.harness/` 中的版本化 markdown 文件进行
@@ -247,64 +232,46 @@ With options:
 | `--pass-k N` | 3 | Consecutive rounds above threshold (pass^k) |
 | `--dir PATH` | `.` | Working directory |
 
-#### /harness-lite (Lightweight Mode)
+#### Vague description vs detailed plan
 
-When you already have a plan (from Plan Mode or conversation context), or `/harness` feels too heavy for the task:
+`/harness` accepts both. The Planner auto-detects which one you supplied:
 
-```
-/harness-lite your task description
-```
+- **Vague description** (1-4 sentences) — Planner explores the project, expands it into a full spec, and asks you to pick grading dimensions + weights.
+- **Detailed plan** (numbered steps / file-level decisions / explicit acceptance criteria, or a plan pasted from Plan Mode) — Planner translates your plan directly into spec / criteria / contract using sensible default weights. No interrupting dialog.
 
-With options:
-
-```
-/harness-lite --max-rounds 5 --threshold 9.5 --dir ./my-project task description
-```
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `--max-rounds N` | 5 | Maximum iteration rounds |
-| `--threshold N` | 9.5 | Score threshold (1-10) to pass |
-| `--dir PATH` | `.` | Working directory |
-
-Key differences from full mode:
-
-| Aspect | /harness | /harness-lite |
-|--------|----------|---------------|
-| Planner | Generates spec/criteria/contract | Skipped — uses user's existing plan |
-| Alignment Phase | Generator ↔ Evaluator negotiate | Skipped — starts coding immediately |
-| Pass model | pass^k (k consecutive rounds) | Single pass at threshold |
-| Default rounds | 10 | 5 |
+No separate `/harness-lite` entry point is needed.
 
 ### How It Works
 
 ```
-User Prompt
+User Prompt (vague description OR detailed plan)
     │
     ▼
 ┌─────────┐    spec.md
-│ Planner │───▶ criteria.md    ◀── User confirms grading dimensions
-│         │    contract.md
-└─────────┘
+│ Planner │───▶ criteria.md   ◀── Vague mode asks for dimensions;
+│ (bypass)│    contract.md       detailed mode translates directly.
+└─────────┘                      (Docs only, never code.)
     │
     ▼
 ┌───────────┐  implementation-plan.md   ┌───────────┐
 │ Generator │◀─────────────────────────▶│ Evaluator │  Alignment Phase
-│           │  alignment-review.md      │           │  (negotiate before coding)
+│ (bypass)  │  alignment-review.md      │ (bypass)  │  (negotiate before coding)
 └───────────┘                           └───────────┘
     │                                        │
     ▼                                        ▼
 ┌───────────┐  progress-round-N.md      ┌───────────┐
 │ Generator │─────────────────────────▶ │ Evaluator │  Iteration Phase
-│  (code)   │◀─────────────────────────│  (score)  │  (loop until pass)
+│  (code)   │◀─────────────────────────│  (score)  │  (loop until pass^k)
 └───────────┘  feedback-round-N.md      └───────────┘
 ```
 
-1. **Planner** expands your brief description into a full spec, grading criteria, and sprint contract
-2. **User confirms** which grading dimensions and weight distribution to use
+1. **Planner** translates your input into spec / criteria / contract. Vague descriptions get expanded via project exploration; detailed plans are translated directly. Planner only writes docs, never source code.
+2. **User confirms** grading dimensions and weights (vague mode only; detailed mode uses sensible defaults without interruption).
 3. **Alignment Phase** — Generator writes an implementation plan, Evaluator reviews it. They negotiate until aligned. This prevents wasted coding effort.
-4. **Iteration Phase** — Generator codes → Evaluator scores against criteria → if below threshold, Generator gets specific feedback and tries again. Uses pass^k model: k consecutive rounds above threshold required to pass
-5. **Delivery** — once pass^k is achieved, final cleanup and summary
+4. **Iteration Phase** — Generator codes → Evaluator scores against criteria → if below threshold, Generator gets specific feedback and tries again. Uses pass^k model: k consecutive rounds above threshold required to pass.
+5. **Delivery** — once pass^k is achieved, final cleanup and summary.
+
+> All teammates (Planner / Generator / Evaluator) are spawned with `bypassPermissions` mode so that every Read/Bash call doesn't bounce back to the team leader for approval.
 
 ### Real-World Results
 
@@ -329,7 +296,10 @@ The Alignment Phase made the difference — by having Generator and Evaluator ag
 
 ### Key Features
 
-- **User-driven grading** — you pick the dimensions (Functionality, Code Quality, UX, Reliability, etc.) and weight distribution before work starts
+- **One entry, two modes** — `/harness` handles both vague descriptions and detailed plans; the Planner auto-detects and adapts
+- **Clean separation of duties** — Planner only writes spec documents, never source code; Generator is the sole coder
+- **No approval friction** — all teammates spawn with `bypassPermissions` mode, so tool calls don't bounce back to the leader
+- **User-driven grading** — in vague mode, you pick the dimensions and weights; in detailed mode, sensible defaults are used
 - **Alignment Phase** — Generator and Evaluator negotiate implementation details before coding, catching spec gaps early
 - **Adversarial evaluation** — Evaluator is tuned toward skepticism, scores must be earned with evidence
 - **Structured handoffs** — all communication happens through versioned markdown files in `.harness/`
